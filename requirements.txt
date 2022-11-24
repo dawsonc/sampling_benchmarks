@@ -1,0 +1,28 @@
+# Code quality
+black
+pytest
+flake8
+beartype
+
+# Standard utility packages
+numpy
+matplotlib
+seaborn
+pandas
+ipykernel
+ipywidgets
+tqdm
+
+# Optimization
+jaxopt
+
+# Neural networks
+equinox
+
+# Sampling
+blackjax
+
+# JAX
+jax[cpu]
+jaxtyping
+chex
