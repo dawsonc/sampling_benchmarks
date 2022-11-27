@@ -1,4 +1,3 @@
-"""Sampling from the potential for the ballistic benchmark"""
 import jax
 import jax.numpy as jnp
 
@@ -9,12 +8,12 @@ import matplotlib.pyplot as plt
 import blackjax
 
 from sampling_benchmarks import BenchmarkRunner, TestCase
-from sampling_benchmarks.benchmarks import Ballistic
+from sampling_benchmarks.benchmarks import Quadratic
 
 
 def main(dimension: int):
     # Define the log probability for the benchmark problem
-    benchmark = Ballistic(dimension, jnp.zeros((dimension,)), jnp.array(1.0))
+    benchmark = Quadratic(dimension, jnp.ones((dimension,)), jnp.array(1.0))
     scale = 100.0
     logprob = lambda x: -scale * benchmark.u(x)
     logprob = jax.jit(logprob)
@@ -24,27 +23,35 @@ def main(dimension: int):
 
     # Make sure both take approximately similar steps and use the same overall number
     # of function evaluations
-    learning_rates = [1e-3, 1e-2, 1e-1]
+    integrators = [
+        blackjax.mcmc.integrators.velocity_verlet,
+        blackjax.mcmc.integrators.mclachlan,
+        blackjax.mcmc.integrators.yoshida,
+    ]
+    names = ["verlet (1st order)", "mclachlan (2nd order)", "yoshida (3rd order)"]
+    potential_evals_per_step = [1, 2, 3]
+    lr = 1.0
     num_function_evaluations = 1_000
 
     # HMC
-    for lr in learning_rates:
+    for integrator, name, evals_per_step in zip(
+        integrators, names, potential_evals_per_step
+    ):
         inv_mass_matrix = jnp.ones((dimension,))
-        num_integration_steps = 5
+        num_integration_steps = 50
         step_size = lr / num_integration_steps
-        hmc_num_samples = int(num_function_evaluations / num_integration_steps)
-        hmc = blackjax.hmc(logprob, step_size, inv_mass_matrix, num_integration_steps)
-        cases.append(
-            TestCase("HMC (lr {:.1e})".format(lr), hmc, benchmark, hmc_num_samples)
+        hmc_num_samples = int(
+            num_function_evaluations / (num_integration_steps * evals_per_step)
         )
-
-    # MCMC
-    for lr in learning_rates:
-        sigma = lr * jnp.ones((dimension,))
-        rmh = blackjax.rmh(logprob, sigma)
-        rmh_num_samples = num_function_evaluations
+        hmc = blackjax.hmc(
+            logprob,
+            step_size,
+            inv_mass_matrix,
+            num_integration_steps,
+            integrator=integrator,
+        )
         cases.append(
-            TestCase("RMH (lr {:.1e})".format(lr), rmh, benchmark, rmh_num_samples)
+            TestCase("HMC ({})".format(name), hmc, benchmark, hmc_num_samples)
         )
 
     # Make the benchmark runner
@@ -52,7 +59,7 @@ def main(dimension: int):
     runner = BenchmarkRunner(cases, num_trials_per_sampler)
 
     # Run!
-    initial_guess = jnp.zeros((dimension,))
+    initial_guess = 10 * jnp.ones((dimension,))
     result = runner.run(initial_guess)
 
     # Plot results and print times
@@ -65,7 +72,7 @@ def main(dimension: int):
         acceptance_rate = (steps > 0).mean()
 
         print(
-            "{}: {:.4f} s overall, {:.4f} s per chain, {:.2f}%% acceptance rate".format(
+            "{}: {:.4f} s overall, {:.4f} s per chain, {:.2f}% acceptance rate".format(
                 case,
                 case_time,
                 case_time / num_trials_per_sampler,
@@ -93,7 +100,7 @@ def main(dimension: int):
     plt.xlabel("Potential function evaluations")
     plt.ylabel("Potential")
     plt.title(
-        "Ballistic (n={}, scale={}); {} trials".format(
+        "Quadratic (n={}, scale={}); {} trials".format(
             dimension,
             scale,
             num_trials_per_sampler,
@@ -105,5 +112,5 @@ def main(dimension: int):
 
 
 if __name__ == "__main__":
-    dimension = 1
+    dimension = 1_000
     main(dimension)

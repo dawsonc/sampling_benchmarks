@@ -3,17 +3,18 @@ from dataclasses import dataclass
 
 import jax
 from beartype import beartype
-from beartype.typing import List, Tuple
+from beartype.typing import List
 from blackjax.base import SamplingAlgorithm
 from jaxtyping import Array, Float, Integer, jaxtyped, PyTree
 
 from sampling_benchmarks.benchmarks import Benchmark
 
+
 @dataclass
 class TestCase:
     """
     Defines a single test case.
-    
+
     args:
         name: the name of this test case
         sampler: the SamplingAlgorithm to use for this test
@@ -21,10 +22,12 @@ class TestCase:
             probability function supplied to sampler.
         num_samples: how many steps to sample in this chain
     """
+
     name: str
     sampler: SamplingAlgorithm
     benchmark: Benchmark
     num_samples: int
+
 
 class BenchmarkRunner:
     """
@@ -79,7 +82,7 @@ class BenchmarkRunner:
 
     @jaxtyped
     @beartype
-    def run(self, initial_guess: Float[Array, "dim"]) -> PyTree:
+    def run(self, initial_guess: Float[Array, " dim"]) -> PyTree:
         """
         Run the benchmark suite (with as much JAX optimization as possible).
 
@@ -89,12 +92,19 @@ class BenchmarkRunner:
         results = {}
 
         for tc in self.test_cases:
+            print(f"Running {tc.name}...")
+            
             # Setup the sampler
             initial_state = tc.sampler.init(initial_guess)
             kernel = jax.jit(tc.sampler.step)
 
-            # Run inference
+            # Run inference once to JIT, then re-run to get runtimes
             base_key = jax.random.PRNGKey(0)
+            # keys = jax.random.split(base_key, 2)
+            # jax.vmap(self.inference_loop, in_axes=(0, None, None, None))(
+            #     keys, kernel, initial_state, tc.num_samples
+            # )
+
             keys = jax.random.split(base_key, self.num_trials_per_case)
             start = time.perf_counter()
             samples = jax.vmap(self.inference_loop, in_axes=(0, None, None, None))(

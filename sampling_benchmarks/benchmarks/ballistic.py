@@ -70,7 +70,21 @@ class Ballistic(Benchmark):
                 jnp.abs(x - wall_x) <= wall_width / 2.0, y <= wall_height
             )
             ground_collision = y <= 0.0
+
+            # If there was a collision, we should find the moment of collison
+            # and reverse back to it
+            wall_penetration = jnp.minimum(wall_x - 0.5 * wall_width - x, 0.0)
+            ground_penetration = jnp.minimum(y, 0.0)
+            t_wall_collision = wall_penetration / (1e-3 + jnp.abs(vx))
+            t_ground_collision = ground_penetration / (1e-3 + jnp.abs(vy))
+            t_collision = jnp.minimum(t_wall_collision, t_ground_collision)
+
+            # Update state to reflect collision
+            x = jnp.where(wall_collision, wall_x + jnp.zeros_like(x), x)
             vx = jnp.where(wall_collision, jnp.zeros_like(vx), vx)
+
+            y = jnp.where(ground_collision, jnp.zeros_like(y), y)
+            x = jnp.where(ground_collision, x + t_ground_collision * vx, x)
             vx = jnp.where(ground_collision, jnp.zeros_like(vx), vx)
             vy = jnp.where(ground_collision, jnp.zeros_like(vy), vy)
 
@@ -78,12 +92,12 @@ class Ballistic(Benchmark):
             carry = (x, y, vx, vy)
             return carry, carry
 
-        _, (px, py, _, _) = jax.lax.scan(
+        (px, _, _, _), _ = jax.lax.scan(
             step_fn, (px0, py0, vx0, vy0), None, length=self.T
         )
 
         # The potential here is the negative mean distance travelled by the balls
-        return -px[-1, :].mean()
+        return -px.mean()
 
     @property
     @jaxtyped
