@@ -1,3 +1,5 @@
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 from beartype import beartype
@@ -38,6 +40,7 @@ class Ballistic(Benchmark):
         max_t_flight = self.v0 * 2 / self.g
         self.T = int(max_t_flight / self.dt + 1)
 
+    @partial(jax.jit, static_argnums=(0,))
     @jaxtyped
     @beartype
     def u(self, x: Float[Array, " dim"]) -> Float[Array, ""]:
@@ -52,8 +55,8 @@ class Ballistic(Benchmark):
         # Simulate the trajectory of all of the balls in free flight,
         # but if any of them hit the wall, their x velocity is set to zero.
         # If any hit the ground, their x and y velocities are set to zero
-        wall_x = 7.0
-        wall_height = 2.5
+        wall_x = 5.5
+        wall_height = 2.0
         wall_width = 0.1
 
         def step_fn(carry, dummy_input):

@@ -13,8 +13,6 @@ from sampling_benchmarks.samplers.informal import informal_hmc
 from sampling_benchmarks import BenchmarkRunner, TestCase
 from sampling_benchmarks.benchmarks import Quadratic
 
-# from jax.config import config
-# config.update('jax_disable_jit', True)
 
 def main(dimension: int):
     # Define the log probability for the benchmark problem

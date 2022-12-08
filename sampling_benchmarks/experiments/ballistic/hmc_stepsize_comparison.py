@@ -1,21 +1,22 @@
-"""Sanity check by sampling from a quadratic potential"""
+"""Sampling from the potential for the ballistic benchmark"""
 import jax
 import jax.numpy as jnp
 
 import matplotlib.pyplot as plt
+from matplotlib import cm
 
 # isort: split
 
 import blackjax
 
 from sampling_benchmarks import BenchmarkRunner, TestCase
-from sampling_benchmarks.benchmarks import Quadratic
+from sampling_benchmarks.benchmarks import Ballistic
 
 
 def main(dimension: int):
     # Define the log probability for the benchmark problem
-    benchmark = Quadratic(dimension, jnp.ones((dimension,)), jnp.array(1.0))
-    scale = dimension
+    benchmark = Ballistic(dimension)
+    scale = 100.0
     logprob = lambda x: -scale * benchmark.u(x)
     logprob = jax.jit(logprob)
 
@@ -24,44 +25,31 @@ def main(dimension: int):
 
     # Make sure both take approximately similar steps and use the same overall number
     # of function evaluations
-    learning_rates = [1e-2]
+    overall_stepsize = 0.25
+    hmc_stepsizes = [0.001, 0.005, 0.01, 0.05]
     num_function_evaluations = 1_000
 
-    # # HMC
-    # for lr in learning_rates:
-    #     inv_mass_matrix = jnp.ones((dimension,))
-    #     num_integration_steps = 50
-    #     step_size = lr / num_integration_steps
-    #     hmc_num_samples = int(num_function_evaluations / num_integration_steps)
-    #     hmc = blackjax.hmc(logprob, step_size, inv_mass_matrix, num_integration_steps)
-    #     cases.append(
-    #         TestCase("HMC (lr {:.2e})".format(lr), hmc, benchmark, hmc_num_samples)
-    #     )
-
-    # MCMC
-    for lr in learning_rates:
-        lr = jnp.sqrt(lr)
-        sigma = lr * jnp.ones((dimension,))
-        rmh = blackjax.rmh(logprob, sigma)
-        rmh_num_samples = num_function_evaluations
+    # HMC
+    for step_size in hmc_stepsizes:
+        inv_mass_matrix = jnp.ones((dimension,))
+        num_integration_steps = int(overall_stepsize / step_size)
+        hmc_num_samples = int(num_function_evaluations / num_integration_steps)
+        hmc = blackjax.hmc(logprob, step_size, inv_mass_matrix, num_integration_steps)
         cases.append(
-            TestCase("RMH (lr {:.2e})".format(lr), rmh, benchmark, rmh_num_samples)
-        )
-    
-    # mala
-    for lr in learning_rates:
-        mala = blackjax.mala(logprob, lr)
-        mala_num_samples = num_function_evaluations
-        cases.append(
-            TestCase("MALA (lr {:.2e})".format(lr), mala, benchmark, mala_num_samples)
+            TestCase(
+                "HMC (stepsize {:.1e}, {:d})".format(step_size, num_integration_steps),
+                hmc,
+                benchmark,
+                hmc_num_samples,
+            )
         )
 
     # Make the benchmark runner
-    num_trials_per_sampler = 20
+    num_trials_per_sampler = 50
     runner = BenchmarkRunner(cases, num_trials_per_sampler)
 
     # Run!
-    initial_guess = 10 * jnp.ones((dimension,))
+    initial_guess = jnp.zeros((dimension,))
     result = runner.run(initial_guess)
 
     # Plot results and print times
@@ -74,7 +62,7 @@ def main(dimension: int):
         acceptance_rate = (steps > 0).mean()
 
         print(
-            "{}: {:.4f} s overall, {:.4f} s per chain, {:.2f}% acceptance rate".format(
+            "{}: {:.4f} s overall, {:.4f} s per chain, {:.2f}%% acceptance rate".format(
                 case,
                 case_time,
                 case_time / num_trials_per_sampler,
@@ -92,17 +80,17 @@ def main(dimension: int):
             x_case,
             result[case]["potential"].T,
             linestyle="-",
-            alpha=0.4,
+            alpha=0.2,
             color=h[0].get_c(),
         )
-        plt.fill_between(x_case, case_min, case_max, alpha=0.2, color=h[0].get_c())
+        plt.fill_between(x_case, case_min, case_max, alpha=0.1, color=h[0].get_c())
 
     plt.plot(x_case, 0 * x_case + benchmark.global_minimum, "k--", label="Optimum")
 
     plt.xlabel("Potential function evaluations")
     plt.ylabel("Potential")
     plt.title(
-        "Quadratic (n={}, scale={}); {} trials".format(
+        "Ballistic (n={}, scale={}); {} trials".format(
             dimension,
             scale,
             num_trials_per_sampler,
@@ -114,5 +102,5 @@ def main(dimension: int):
 
 
 if __name__ == "__main__":
-    dimension = 1_000
+    dimension = 2
     main(dimension)

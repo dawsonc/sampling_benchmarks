@@ -26,11 +26,13 @@ if __name__ == "__main__":
     N = 10000
     x = jnp.linspace(0, jnp.pi/2, N).reshape(-1, 1)
     u = jax.vmap(problem.u)(x)
+    dudx = jax.vmap(jax.grad(problem.u))(x)
 
-    plt.plot(x, u)
+    plt.plot(x, u, label="u")
+    # plt.plot(x, dudx, label="dudx")
     plt.plot(x, x * 0.0 + problem.global_minimum, "k--", label="Global Minimum")
     plt.xlabel("x")
-    plt.ylabel("u")
+    # plt.ylabel("u")
     plt.legend()
 
     plt.show()
